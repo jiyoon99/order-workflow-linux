@@ -50,6 +50,43 @@ class OrderSortingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "크기"):
                 handler._body()
 
+    def test_writes_latest_shutdown_backup_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original_data = server.DATA_FILE
+            original_users = server.USERS_FILE
+            original_audit = server.AUDIT_FILE
+            try:
+                server.DATA_FILE = Path(directory) / "orders.json"
+                server.USERS_FILE = Path(directory) / "users.json"
+                server.AUDIT_FILE = Path(directory) / "audit.jsonl"
+                server.DATA_FILE.write_text(json.dumps([{"id": "first"}], ensure_ascii=False), encoding="utf-8")
+                server.USERS_FILE.write_text(json.dumps([{"id": "user-1"}], ensure_ascii=False), encoding="utf-8")
+                server.AUDIT_FILE.write_text("first-audit\n", encoding="utf-8")
+
+                server.write_shutdown_backup()
+
+                backup_dir = server.shutdown_backup_dir()
+                self.assertTrue(backup_dir.exists())
+                self.assertEqual(json.loads((backup_dir / "orders.json").read_text(encoding="utf-8")), [{"id": "first"}])
+                self.assertEqual(json.loads((backup_dir / "users.json").read_text(encoding="utf-8")), [{"id": "user-1"}])
+                self.assertEqual((backup_dir / "audit.jsonl").read_text(encoding="utf-8"), "first-audit\n")
+
+                (backup_dir / "stale.txt").write_text("old", encoding="utf-8")
+                server.DATA_FILE.write_text(json.dumps([{"id": "second"}], ensure_ascii=False), encoding="utf-8")
+                server.USERS_FILE.write_text(json.dumps([{"id": "user-2"}], ensure_ascii=False), encoding="utf-8")
+                server.AUDIT_FILE.write_text("second-audit\n", encoding="utf-8")
+
+                server.write_shutdown_backup()
+
+                self.assertFalse((backup_dir / "stale.txt").exists())
+                self.assertEqual(json.loads((backup_dir / "orders.json").read_text(encoding="utf-8")), [{"id": "second"}])
+                self.assertEqual(json.loads((backup_dir / "users.json").read_text(encoding="utf-8")), [{"id": "user-2"}])
+                self.assertEqual((backup_dir / "audit.jsonl").read_text(encoding="utf-8"), "second-audit\n")
+            finally:
+                server.DATA_FILE = original_data
+                server.USERS_FILE = original_users
+                server.AUDIT_FILE = original_audit
+
     def test_removes_duplicates_within_one_import_batch(self):
         existing = [{"importKey": "existing"}]
         imported = [

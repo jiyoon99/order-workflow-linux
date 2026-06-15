@@ -1,0 +1,18 @@
+Order Workflow Server Control
+
+Start
+- Linux/macOS: `python3 src/server.py`
+- Windows: `py src/server.py`
+
+Stop
+- In the terminal running the server, press `Ctrl+C`.
+- If the server runs under systemd, use `systemctl stop <service-name>`.
+
+Shutdown behavior
+- The server keeps the usual daily backups when data is written.
+- On shutdown it creates one latest snapshot backup in `data/backups/shutdown-latest/`.
+- The previous shutdown snapshot is deleted before the new one is stored.
+
+Notes
+- Set `PORT` if you want a different port.
+- The shutdown snapshot includes current `orders.json`, `users.json`, and `audit.jsonl` when they exist.

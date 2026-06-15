@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import shutil
 import threading
 import time
@@ -139,6 +140,61 @@ def write_orders(orders: list[dict]) -> None:
     os.chmod(temporary, 0o600)
     temporary.replace(DATA_FILE)
     os.chmod(DATA_FILE, 0o600)
+
+
+def shutdown_backup_dir() -> Path:
+    return DATA_FILE.parent / "backups" / "shutdown-latest"
+
+
+def write_shutdown_backup() -> None:
+    sources = [DATA_FILE, USERS_FILE, AUDIT_FILE]
+    existing_sources = [source for source in sources if source.exists()]
+    if not existing_sources:
+        return
+    backup_dir = shutdown_backup_dir()
+    temp_dir = backup_dir.parent / ".shutdown-latest.tmp"
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(temp_dir, 0o700)
+    for source in existing_sources:
+        shutil.copy2(source, temp_dir / source.name)
+        os.chmod(temp_dir / source.name, 0o600)
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+    temp_dir.rename(backup_dir)
+    os.chmod(backup_dir, 0o700)
+
+
+def serve() -> None:
+    port = int(os.getenv("PORT", "3000"))
+    httpd = OrderHTTPServer(("0.0.0.0", port), Handler)
+    stopped = threading.Event()
+
+    def stop_server(signum: int, frame: object | None) -> None:
+        if stopped.is_set():
+            return
+        stopped.set()
+        httpd.shutdown()
+
+    previous_handlers: dict[int, object] = {}
+    for signum in (signal.SIGINT, getattr(signal, "SIGTERM", None)):
+        if signum is None:
+            continue
+        previous_handlers[signum] = signal.getsignal(signum)
+        signal.signal(signum, stop_server)
+
+    print(f"Order workflow sample: http://localhost:{port}")
+    server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    server_thread.start()
+    try:
+        while server_thread.is_alive():
+            server_thread.join(timeout=0.5)
+    finally:
+        httpd.server_close()
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
+        write_shutdown_backup()
 
 
 def archive_excel_files(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
@@ -584,6 +640,4 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "3000"))
-    print(f"Order workflow sample: http://localhost:{port}")
-    OrderHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+    serve()
