@@ -1,0 +1,11 @@
+node_modules/
+data/orders.json
+data/users.json
+data/audit.jsonl
+data/backups/
+data/*.backup-*
+data/*.tmp
+*.log
+.DS_Store
+__pycache__/
+*.pyc

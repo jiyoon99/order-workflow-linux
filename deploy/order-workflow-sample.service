@@ -1,0 +1,17 @@
+[Unit]
+Description=Halfbook Order Workflow
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zion
+Group=zion
+WorkingDirectory=/home/zion/projects/order-workflow-sample
+Environment=PORT=3000
+ExecStart=/usr/bin/python3 /home/zion/projects/order-workflow-sample/src/server.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
