@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from excel import read_first_sheet, write_xlsx
 from importers import import_workbook
 
-COLLECTED_SAMPLE = Path("/home/zion/다운로드/주문수집_20260612.xlsx")
+COLLECTED_SAMPLE = Path(os.getenv("COLLECTED_SAMPLE_FILE", "test/fixtures/collected-orders.xlsx"))
 
 
 class ImporterTests(unittest.TestCase):
